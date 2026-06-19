@@ -4,7 +4,7 @@
   "branch_name": "feat/netsuite-jwt-template-function",
   "pr_url": "https://github.com/jonking-ajar/yaak-plugin-jwt-generate/pull/1",
   "pr_number": 1,
-  "stage": "pr_opened",
+  "stage": "self_review_applied",
   "history": [
     {
       "stage": "plan_drafted",
@@ -33,6 +33,10 @@
     {
       "stage": "pr_opened",
       "at": "2026-06-19T14:17:58Z"
+    },
+    {
+      "stage": "self_review_applied",
+      "at": "2026-06-19T14:24:21Z"
     }
   ],
   "base_branch": "main"
