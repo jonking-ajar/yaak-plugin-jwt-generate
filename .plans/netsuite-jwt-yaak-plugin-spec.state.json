@@ -1,0 +1,15 @@
+{
+  "linear_issue": null,
+  "plan_path": ".plans/netsuite-jwt-yaak-plugin-spec.md",
+  "branch_name": null,
+  "pr_url": null,
+  "pr_number": null,
+  "stage": "eng_revised",
+  "history": [
+    { "stage": "plan_drafted", "at": "2026-06-19T00:10:58Z" },
+    { "stage": "product_reviewed", "at": "2026-06-19T00:17:41Z" },
+    { "stage": "product_revised", "at": "2026-06-19T00:17:41Z" },
+    { "stage": "eng_reviewed", "at": "2026-06-19T00:24:47Z" },
+    { "stage": "eng_revised", "at": "2026-06-19T00:24:47Z" }
+  ]
+}
