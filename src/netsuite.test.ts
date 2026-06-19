@@ -10,10 +10,12 @@ import {
   IAT_SKEW_SECONDS,
   type NetsuiteTokenParams,
   type NsAlgorithm,
+  type TokenRequest,
   type TokenSendResult,
   TokenExchangeError,
   audUrl,
   buildAssertion,
+  exchangeAssertion,
   exchangeToken,
   normalizePem,
 } from "./netsuite";
@@ -199,6 +201,38 @@ describe("exchangeToken", () => {
     );
   });
 
+});
+
+describe("exchangeAssertion", () => {
+  test("POSTs the given assertion verbatim and returns the token", async () => {
+    let captured: TokenRequest | undefined;
+    const send = async (req: TokenRequest): Promise<TokenSendResult> => {
+      captured = req;
+      return { status: 200, body: '{"access_token":"abc","expires_in":3600}' };
+    };
+
+    const result = await exchangeAssertion("1234567_SB1", "the.signed.jwt", send);
+
+    expect(result).toEqual({ accessToken: "abc", expiresIn: 3600 });
+    expect(captured?.url).toBe(audUrl("1234567_SB1"));
+    expect(captured?.method).toBe("POST");
+    const form = new URLSearchParams(captured?.body);
+    expect(form.get("client_assertion")).toBe("the.signed.jwt");
+    expect(form.get("grant_type")).toBe("client_credentials");
+  });
+
+  test("non-2xx throws a typed error", async () => {
+    const send = async (): Promise<TokenSendResult> => ({
+      status: 401,
+      body: '{"error":"invalid_grant","error_description":"expired"}',
+    });
+    await expect(
+      exchangeAssertion("1234567", "jwt", send),
+    ).rejects.toBeInstanceOf(TokenExchangeError);
+  });
+});
+
+describe("buildAssertion key/alg mismatch", () => {
   test("a key that does not match the algorithm throws a safe typed error (no key material)", async () => {
     // ES256 selected, but an RSA (PS256) key supplied → import/sign mismatch.
     const rsa = await makeKeyPair("PS256");

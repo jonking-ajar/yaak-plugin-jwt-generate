@@ -3,6 +3,7 @@ import {
   EXPIRY_SKEW_SECONDS,
   cacheKey,
   clearCache,
+  exchangeCacheKey,
   getCached,
   setCached,
 } from "./cache";
@@ -57,5 +58,14 @@ describe("cache", () => {
     setCached(key, "tok-short", 30, now); // 30 < 60 skew
     // TTL clamped to 0 → expiresAt === now → already expired.
     expect(getCached(key, now)).toBeNull();
+  });
+
+  test("exchangeCacheKey: stable, varies by account/assertion, hides the raw assertion", () => {
+    const assertion = "header.payload.signature";
+    const k = exchangeCacheKey("391656-sb1", assertion);
+    expect(exchangeCacheKey("391656-sb1", assertion)).toBe(k); // stable
+    expect(exchangeCacheKey("391656-sb1", "other.jwt")).not.toBe(k); // by assertion
+    expect(exchangeCacheKey("999999", assertion)).not.toBe(k); // by account
+    expect(k).not.toContain(assertion); // hashed, not held verbatim
   });
 });
