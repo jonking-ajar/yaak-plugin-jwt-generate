@@ -130,12 +130,11 @@ export const plugin: PluginDefinition = {
         const cached = getCached(key, now);
         if (cached != null) return cached;
 
-        // Preview renders (autocomplete / preview pane, fire on keystroke) serve
-        // cache-only — never sign or hit the network.
-        if (args.purpose === "preview") {
-          return null;
-        }
-
+        // Both send and preview mint on a cache miss, so the editor's Rendered
+        // Preview (and its refresh button — Yaak renders both with purpose
+        // 'preview') shows a real token. The required-arg guard above plus the
+        // ~1h token cache bound this to at most one mint per credential set, so
+        // it does not re-sign or re-POST on every keystroke.
         try {
           const { accessToken, expiresIn } = await exchangeToken(
             params,
@@ -145,17 +144,22 @@ export const plugin: PluginDefinition = {
           setCached(key, accessToken, expiresIn, now);
           return accessToken;
         } catch (err) {
-          // Key off `err.name` (a literal set in the constructor) rather than
-          // `instanceof TokenExchangeError`: the literal survives esbuild
-          // bundling/minification, whereas instanceof against the class
-          // identifier can be fragile across bundle boundaries. A
-          // TokenExchangeError carries a vetted, secret-free message; anything
-          // else (e.g. a fetch/network rejection) gets a generic message.
-          const message =
-            err instanceof Error && err.name === "TokenExchangeError"
-              ? err.message
-              : "NetSuite token request failed";
-          await ctx.toast.show({ color: "danger", message });
+          // Suppress error toasts during preview: the editor preview/refresh
+          // fires with purpose 'preview' and partially-configured args would
+          // otherwise spam toasts. Surface failures only on a real send.
+          if (args.purpose === "send") {
+            // Key off `err.name` (a literal set in the constructor) rather than
+            // `instanceof TokenExchangeError`: the literal survives esbuild
+            // bundling/minification, whereas instanceof against the class
+            // identifier can be fragile across bundle boundaries. A
+            // TokenExchangeError carries a vetted, secret-free message; anything
+            // else (e.g. a fetch/network rejection) gets a generic message.
+            const message =
+              err instanceof Error && err.name === "TokenExchangeError"
+                ? err.message
+                : "NetSuite token request failed";
+            await ctx.toast.show({ color: "danger", message });
+          }
           return null;
         }
       },
