@@ -158,11 +158,15 @@ export async function exchangeToken(
   if (typeof accessToken !== "string" || accessToken.length === 0) {
     throw new TokenExchangeError("NetSuite response did not contain an access_token");
   }
+  // NetSuite always returns a numeric `expires_in`; a response missing it is
+  // malformed. Treat it as an error rather than caching for a guessed lifetime.
+  if (typeof expiresIn !== "number" || !Number.isFinite(expiresIn) || expiresIn <= 0) {
+    throw new TokenExchangeError(
+      "NetSuite response did not contain a valid expires_in",
+    );
+  }
 
-  return {
-    accessToken,
-    expiresIn: typeof expiresIn === "number" ? expiresIn : ASSERTION_TTL_SECONDS,
-  };
+  return { accessToken, expiresIn };
 }
 
 /**

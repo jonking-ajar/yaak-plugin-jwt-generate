@@ -145,6 +145,12 @@ export const plugin: PluginDefinition = {
           setCached(key, accessToken, expiresIn, now);
           return accessToken;
         } catch (err) {
+          // Key off `err.name` (a literal set in the constructor) rather than
+          // `instanceof TokenExchangeError`: the literal survives esbuild
+          // bundling/minification, whereas instanceof against the class
+          // identifier can be fragile across bundle boundaries. A
+          // TokenExchangeError carries a vetted, secret-free message; anything
+          // else (e.g. a fetch/network rejection) gets a generic message.
           const message =
             err instanceof Error && err.name === "TokenExchangeError"
               ? err.message
