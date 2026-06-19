@@ -97,14 +97,30 @@ describe("onRender", () => {
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
-  test("preview + cold cache → null and never signs or hits the network", async () => {
-    const spy = stubFetch(() => tokenResponse());
+  test("preview + cold cache → mints a token (so the Rendered Preview shows it)", async () => {
+    const spy = stubFetch(() => tokenResponse("previewed"));
     const result = await onRender(makeCtx(), {
       purpose: "preview",
       values: fullValues(),
     });
+    expect(result).toBe("previewed");
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  test("preview error → null and NO toast (suppressed during preview)", async () => {
+    stubFetch(
+      () =>
+        new Response(JSON.stringify({ error: "invalid_client" }), {
+          status: 400,
+        }),
+    );
+    const ctx = makeCtx();
+    const result = await onRender(ctx, {
+      purpose: "preview",
+      values: fullValues(),
+    });
     expect(result).toBeNull();
-    expect(spy).not.toHaveBeenCalled();
+    expect(ctx.toast.show).not.toHaveBeenCalled();
   });
 
   test("preview + warm cache → returns cached token without a network call", async () => {
