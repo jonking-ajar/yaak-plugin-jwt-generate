@@ -1,5 +1,5 @@
 {
-  "name": "yaak-plugin-jwt-generate",
+  "name": "@jonking-ajar/yaak-plugin-netsuite-jwt",
   "private": true,
   "version": "0.0.1",
   "scripts": {
@@ -9,12 +9,12 @@
     "check-types": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/node": "^24.10.1",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.14"
+    "@types/node": "^26.0.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
   },
   "dependencies": {
-    "@yaakapp/api": "^0.7.0",
-    "jose": "^5.10.0"
+    "@yaakapp/api": "^0.8.3",
+    "jose": "^6.2.3"
   }
 }

@@ -1,4 +1,4 @@
-# yaak-plugin-jwt-generate
+# yaak-plugin-netsuite-jwt
 
 A [Yaak](https://yaak.app) plugin that adds a `netsuite.token` template function.
 It performs the full NetSuite OAuth 2.0 **client credentials (JWT bearer)** flow —
