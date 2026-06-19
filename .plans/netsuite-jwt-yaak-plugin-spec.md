@@ -105,14 +105,18 @@ them inline.
    while the user is still typing the tag is normal).
 2. Compute the cache key from `(accountId, clientId, certId, scope, algorithm)`.
    If a cached, unexpired token exists → return it (no signing, no network).
-3. **Branch on `args.purpose`** (`RenderPurpose = 'send' | 'preview'`):
-   - `'preview'` (autocomplete / request-preview pane, may fire on every
-     keystroke): **serve from cache only.** On a cache miss return `null` —
-     never sign or POST. This avoids hammering NetSuite and re-signing on every
-     keypress.
-   - `'send'`: on a cache miss, build + sign the assertion JWT, POST it to the
-     token endpoint, parse `access_token` + `expires_in`, cache, and return the
-     token.
+3. On a **cache miss**, mint regardless of `args.purpose` (`'send' | 'preview'`):
+   build + sign the assertion JWT, POST it to the token endpoint, parse
+   `access_token` + `expires_in`, cache, and return the token. Minting on
+   `'preview'` is intentional — Yaak renders the editor's Rendered Preview (and
+   its refresh button) with `purpose: 'preview'`, so a cache-only preview would
+   always show empty. The required-arg guard (step 1) plus the ~1h cache bound
+   this to at most one mint per credential set, so it does **not** re-sign or
+   re-POST on every keystroke. (Reversed the original eng-review decision after
+   real-world UX feedback — see Revision history.)
+   - Error toasts are shown only when `purpose === 'send'`; during `'preview'`
+     a failure returns `null` silently, to avoid toast noise while args are
+     being configured.
 4. **On any failure** (bad key, non-2xx, malformed response, network/timeout):
    return `null` and `ctx.toast.show({ color: 'danger', … })` with a useful
    message. Two message-derivation rules:
@@ -260,8 +264,9 @@ Ordering: cache → netsuite (core) → index (wiring) → README. Run `tsc --no
 - **Hung endpoint.** Without a timeout the render would hang indefinitely. The
   `fetch` sender uses a 30s `AbortController` timeout; an abort funnels to the
   same `null` + toast failure path.
-- **Preview-render cost.** Preview purpose serves cache-only (no sign/POST) so
-  typing a tag never triggers network or credential use.
+- **Preview-render cost.** Preview now mints on a cache miss (so the Rendered
+  Preview shows a token). The required-arg guard + ~1h cache bound this to at
+  most one mint per credential set; preview errors are silent (no toast).
 - **Form-body encoding for `ctx.httpRequest.send` is undocumented** in the 0.7.0
   types (`body: Record<string,any>`). This is the main reason for the `fetch`
   decision; if we must use the ctx sender, this needs spiking first.
@@ -356,3 +361,9 @@ Doc updates: `README.md` per §3.
   `name` to literal `'netsuite.token'`; specified `scope` pass-through; backdated
   assertion `iat` by 30s; named the TTL/skew constants; added required `onRender`
   purpose/rejection tests and an `iat`-backdating test.
+- 2026-06-19: Reversed the preview-render decision after live UX testing — the
+  editor's Rendered Preview (and its refresh button) render with
+  `purpose: 'preview'`, so the original cache-only-preview behavior always
+  showed an empty preview. Preview now mints on a cache miss (bounded by the
+  required-arg guard + cache); preview-time errors are suppressed (no toast).
+  Verified end-to-end against a live NetSuite sandbox (token mint succeeds).

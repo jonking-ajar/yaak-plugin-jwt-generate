@@ -44,8 +44,11 @@ Authorization: Bearer ${[ netsuite.token(
 - **Caching** — tokens are cached in memory keyed by
   `(accountId, clientId, certId, scope, algorithm)` and reused until ~60s before
   expiry. The private key is never part of the cache key and is never persisted.
-- **Autocomplete / preview** — while you type, preview renders serve only from the
-  cache (no signing, no network). A real token is minted only on send.
+- **Preview** — the editor's Rendered Preview (and its refresh button) mints a
+  real token so you can see it, the same as sending. Because of the cache and the
+  required-arg guard, this is at most one mint per credential set, not one per
+  keystroke. Errors are shown as toasts only on a real send (suppressed during
+  preview to avoid noise while configuring).
 - **Failures** — on a bad key, a non-2xx response, or a network error, the function
   returns nothing and shows a Yaak toast describing the problem. The private key and
   the signed assertion are never logged or shown.
