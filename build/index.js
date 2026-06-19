@@ -1,11 +1,30 @@
+//#region rolldown:runtime
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __copyProps = (to, from, except, desc) => {
+	if (from && typeof from === "object" || typeof from === "function") for (var keys = __getOwnPropNames(from), i = 0, n = keys.length, key; i < n; i++) {
+		key = keys[i];
+		if (!__hasOwnProp.call(to, key) && key !== except) __defProp(to, key, {
+			get: ((k) => from[k]).bind(null, key),
+			enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable
+		});
+	}
+	return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", {
+	value: mod,
+	enumerable: true
+}) : target, mod));
+
+//#endregion
+let node_crypto = require("node:crypto");
+node_crypto = __toESM(node_crypto);
 
 //#region src/cache.ts
-/**
-* In-memory token cache for the NetSuite token template function.
-*
-* The cache lives at module scope (the plugin instance is long-lived), keyed by
-* the non-secret identifying inputs. Tokens are never persisted to disk.
-*/
 /** Seconds of skew subtracted from the token lifetime so we re-mint early. */
 const EXPIRY_SKEW_SECONDS = 60;
 const store = /* @__PURE__ */ new Map();
@@ -21,6 +40,19 @@ function cacheKey(params) {
 		params.certId,
 		params.scope,
 		params.algorithm
+	].join("");
+}
+/**
+* Cache key for the exchange-only flow, where the input *is* the signed
+* assertion. The assertion is a bearer credential, so it is hashed (sha256)
+* rather than held verbatim as a map key. Different account or assertion →
+* different key.
+*/
+function exchangeCacheKey(accountId, assertion) {
+	return [
+		"exchange",
+		accountId,
+		(0, node_crypto.createHash)("sha256").update(assertion).digest("hex")
 	].join("");
 }
 /** Return the cached token if present and not yet expired (relative to `now`). */
@@ -1173,18 +1205,16 @@ function buildFormBody(assertion) {
 	return form.toString();
 }
 /**
-* Build the assertion, POST it via `send`, and parse the access token.
-* Throws `TokenExchangeError` (safe message) on non-2xx or a malformed body.
+* Exchange an already-signed client-assertion JWT for an access token: POST it
+* to the account's token endpoint via `send` and parse the response. Throws
+* `TokenExchangeError` (safe message) on non-2xx or a malformed body.
+*
+* The assertion carries its own `scope`/`iss`/`exp`; only `accountId` is needed
+* here to build the token URL host.
 */
-async function exchangeToken(params, send, now) {
-	let assertion;
-	try {
-		assertion = await buildAssertion(params, now);
-	} catch {
-		throw new TokenExchangeError("Failed to sign the assertion — check the private key is valid PKCS#8 PEM and matches the selected algorithm");
-	}
+async function exchangeAssertion(accountId, assertion, send) {
 	const result = await send({
-		url: audUrl(params.accountId),
+		url: audUrl(accountId),
 		method: "POST",
 		headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		body: buildFormBody(assertion)
@@ -1204,6 +1234,20 @@ async function exchangeToken(params, send, now) {
 		accessToken,
 		expiresIn
 	};
+}
+/**
+* Build (sign) the assertion from `params`, then exchange it. Throws
+* `TokenExchangeError` (safe message) on a signing failure, non-2xx, or a
+* malformed body.
+*/
+async function exchangeToken(params, send, now) {
+	let assertion;
+	try {
+		assertion = await buildAssertion(params, now);
+	} catch {
+		throw new TokenExchangeError("Failed to sign the assertion — check the private key is valid PKCS#8 PEM and matches the selected algorithm");
+	}
+	return exchangeAssertion(params.accountId, assertion, send);
 }
 /**
 * Derive a safe, debuggable message from a non-2xx response. Surfaces only the
@@ -1226,7 +1270,7 @@ const FETCH_TIMEOUT_MS = 3e4;
 /**
 * `fetch`-based transport. Lives here (not in `netsuite.ts`) so the core stays
 * environment-free. Enforces a timeout via `AbortController`; an abort rejects
-* and is caught by `onRender` → null + toast.
+* and is caught by the render helper → null + toast.
 */
 async function fetchSender(req) {
 	const controller = new AbortController();
@@ -1256,6 +1300,37 @@ function readString(values, name) {
 }
 function readAlgorithm(values) {
 	return values["algorithm"] === "ES256" ? "ES256" : "PS256";
+}
+/**
+* Shared render logic for both token functions: serve a cached token, otherwise
+* mint via `mint`, cache it, and return it.
+*
+* Both `send` and `preview` mint on a cache miss, so the editor's Rendered
+* Preview (and its refresh button — Yaak renders both with purpose 'preview')
+* shows a real token. The caller's required-arg guard plus the ~1h token cache
+* bound this to at most one mint per credential set, so it does not re-sign or
+* re-POST on every keystroke. Error toasts are surfaced only on a real send;
+* during preview a failure returns null silently to avoid noise while args are
+* being configured.
+*/
+async function renderCachedToken(ctx, purpose, key, mint) {
+	const now = Date.now();
+	const cached = getCached(key, now);
+	if (cached != null) return cached;
+	try {
+		const { accessToken, expiresIn } = await mint(now);
+		setCached(key, accessToken, expiresIn, now);
+		return accessToken;
+	} catch (err) {
+		if (purpose === "send") {
+			const message$1 = err instanceof Error && err.name === "TokenExchangeError" ? err.message : "NetSuite token request failed";
+			await ctx.toast.show({
+				color: "danger",
+				message: message$1
+			});
+		}
+		return null;
+	}
 }
 const plugin = { templateFunctions: [{
 	name: "netsuite.token",
@@ -1325,24 +1400,31 @@ const plugin = { templateFunctions: [{
 			scope: readString(values, "scope") ?? DEFAULT_SCOPE,
 			algorithm: readAlgorithm(values)
 		};
-		const key = cacheKey(params);
-		const now = Date.now();
-		const cached = getCached(key, now);
-		if (cached != null) return cached;
-		try {
-			const { accessToken, expiresIn } = await exchangeToken(params, fetchSender, now);
-			setCached(key, accessToken, expiresIn, now);
-			return accessToken;
-		} catch (err) {
-			if (args.purpose === "send") {
-				const message$1 = err instanceof Error && err.name === "TokenExchangeError" ? err.message : "NetSuite token request failed";
-				await ctx.toast.show({
-					color: "danger",
-					message: message$1
-				});
-			}
-			return null;
-		}
+		return renderCachedToken(ctx, args.purpose, cacheKey(params), (now) => exchangeToken(params, fetchSender, now));
+	}
+}, {
+	name: "netsuite.exchangeToken",
+	description: "Exchange an already-signed NetSuite client-assertion JWT for an access token. Use when the JWT is built elsewhere; no private key required. Caches until just before expiry.",
+	args: [{
+		type: "text",
+		name: "accountId",
+		label: "Account ID",
+		placeholder: "1234567 or 1234567_SB1",
+		description: "NetSuite account id; used to build the token URL host."
+	}, {
+		type: "text",
+		name: "assertion",
+		label: "Client Assertion JWT",
+		password: true,
+		multiLine: true,
+		description: "The signed client-assertion JWT (its scope/iss/exp are already baked in). Reference a Yaak variable, e.g. ${[ netsuite.token(...) ]} is the access token — pass the *assertion* JWT here."
+	}],
+	async onRender(ctx, args) {
+		const values = args.values ?? {};
+		const accountId = readString(values, "accountId");
+		const assertion = readString(values, "assertion");
+		if (!accountId || !assertion) return null;
+		return renderCachedToken(ctx, args.purpose, exchangeCacheKey(accountId, assertion), () => exchangeAssertion(accountId, assertion, fetchSender));
 	}
 }] };
 
