@@ -1,13 +1,9 @@
 # yaak-plugin-netsuite-jwt
 
-A [Yaak](https://yaak.app) plugin for the NetSuite OAuth 2.0 **client credentials
-(JWT bearer)** flow. It provides two template functions:
-
-- **`netsuite.token`** — the full flow: signs a client-assertion JWT from your
-  private key, exchanges it at the NetSuite token endpoint, and returns an
-  **access token** you can drop straight into an `Authorization` header.
-- **`netsuite.exchangeToken`** — takes an already-signed assertion JWT and just
-  performs the exchange (no private key needed).
+A [Yaak](https://yaak.app) plugin that adds a `netsuite.token` template function.
+It performs the full NetSuite OAuth 2.0 **client credentials (JWT bearer)** flow —
+signing a client-assertion JWT, exchanging it at the NetSuite token endpoint, and
+returning an **access token** you can drop straight into an `Authorization` header.
 
 The minted token is cached in memory until just before it expires, so repeated
 renders don't re-sign or re-POST.
@@ -32,27 +28,7 @@ Authorization: Bearer ${[ netsuite.token(
 > template variables (`${[ secret_name ]}`), as shown above. The `privateKey` field
 > renders as a masked (password) input.
 
-### `netsuite.exchangeToken` — exchange a pre-signed JWT
-
-If you already have a signed client-assertion JWT (built elsewhere — e.g. by
-another tool, or a separate signing step), `netsuite.exchangeToken` skips signing
-and just performs the token exchange. **No private key required.**
-
-```
-Authorization: Bearer ${[ netsuite.exchangeToken(
-  accountId='1234567_SB1',
-  assertion='${[ my_signed_assertion_jwt ]}'
-) ]}
-```
-
-| Arg         | Label                | Notes |
-|-------------|----------------------|-------|
-| `accountId` | Account ID           | Used to build the token URL host (same rule as below). |
-| `assertion` | Client Assertion JWT | The signed JWT; its `scope`/`iss`/`exp` are already baked in. Masked input. |
-
-The result is cached the same way (keyed by account + a hash of the assertion).
-
-### `netsuite.token` arguments
+### Arguments
 
 | Arg          | Label                    | Notes |
 |--------------|--------------------------|-------|

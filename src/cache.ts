@@ -1,10 +1,9 @@
 /**
- * In-memory token cache for the NetSuite token template functions.
+ * In-memory token cache for the NetSuite token template function.
  *
  * The cache lives at module scope (the plugin instance is long-lived), keyed by
  * the non-secret identifying inputs. Tokens are never persisted to disk.
  */
-import { createHash } from "node:crypto";
 
 /** Seconds of skew subtracted from the token lifetime so we re-mint early. */
 export const EXPIRY_SKEW_SECONDS = 60;
@@ -39,17 +38,6 @@ export function cacheKey(params: CacheKeyParams): string {
     params.scope,
     params.algorithm,
   ].join("\x1f");
-}
-
-/**
- * Cache key for the exchange-only flow, where the input *is* the signed
- * assertion. The assertion is a bearer credential, so it is hashed (sha256)
- * rather than held verbatim as a map key. Different account or assertion →
- * different key.
- */
-export function exchangeCacheKey(accountId: string, assertion: string): string {
-  const digest = createHash("sha256").update(assertion).digest("hex");
-  return ["exchange", accountId, digest].join("\x1f");
 }
 
 /** Return the cached token if present and not yet expired (relative to `now`). */

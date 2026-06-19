@@ -8,10 +8,6 @@ const fn = plugin.templateFunctions![0]!;
 const onRender = (ctx: unknown, args: unknown): Promise<string | null> =>
   fn.onRender(ctx as never, args as never);
 
-const exchangeFn = plugin.templateFunctions![1]!;
-const onRenderExchange = (ctx: unknown, args: unknown): Promise<string | null> =>
-  exchangeFn.onRender(ctx as never, args as never);
-
 let privateKeyPem: string;
 
 beforeEach(async () => {
@@ -200,51 +196,5 @@ describe("onRender", () => {
     // Generic message — must not echo the raw error or any input.
     expect(arg.message).not.toContain("ECONNREFUSED");
     expect(arg.message).not.toContain(privateKeyPem.slice(40, 80));
-  });
-});
-
-describe("netsuite.exchangeToken", () => {
-  test("registers with accountId + assertion args (assertion masked)", () => {
-    expect(exchangeFn.name).toBe("netsuite.exchangeToken");
-    const names = exchangeFn.args.map((a) => (a as { name: string }).name);
-    expect(names).toEqual(["accountId", "assertion"]);
-    const assertionArg = exchangeFn.args.find(
-      (a) => (a as { name: string }).name === "assertion",
-    ) as { password?: boolean };
-    expect(assertionArg.password).toBe(true);
-  });
-
-  test("missing assertion → null, no network call", async () => {
-    const spy = stubFetch(() => tokenResponse());
-    const result = await onRenderExchange(makeCtx(), {
-      purpose: "send",
-      values: { accountId: "391656-sb1" },
-    });
-    expect(result).toBeNull();
-    expect(spy).not.toHaveBeenCalled();
-  });
-
-  test("send → POSTs the given assertion and returns the token", async () => {
-    const spy = stubFetch(() => tokenResponse("exchanged"));
-    const result = await onRenderExchange(makeCtx(), {
-      purpose: "send",
-      values: { accountId: "391656-sb1", assertion: "the.signed.jwt" },
-    });
-    expect(result).toBe("exchanged");
-    expect(spy).toHaveBeenCalledTimes(1);
-    const body = String(spy.mock.calls[0]![1]?.body ?? "");
-    expect(new URLSearchParams(body).get("client_assertion")).toBe(
-      "the.signed.jwt",
-    );
-  });
-
-  test("preview mints too, then caches (no second network call)", async () => {
-    const spy = stubFetch(() => tokenResponse("cached-exchange"));
-    const values = { accountId: "391656-sb1", assertion: "abc.def.ghi" };
-    const first = await onRenderExchange(makeCtx(), { purpose: "preview", values });
-    expect(first).toBe("cached-exchange");
-    const second = await onRenderExchange(makeCtx(), { purpose: "send", values });
-    expect(second).toBe("cached-exchange");
-    expect(spy).toHaveBeenCalledTimes(1);
   });
 });

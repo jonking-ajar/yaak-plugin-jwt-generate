@@ -1,30 +1,11 @@
-//#region rolldown:runtime
-var __create = Object.create;
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __copyProps = (to, from, except, desc) => {
-	if (from && typeof from === "object" || typeof from === "function") for (var keys = __getOwnPropNames(from), i = 0, n = keys.length, key; i < n; i++) {
-		key = keys[i];
-		if (!__hasOwnProp.call(to, key) && key !== except) __defProp(to, key, {
-			get: ((k) => from[k]).bind(null, key),
-			enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable
-		});
-	}
-	return to;
-};
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", {
-	value: mod,
-	enumerable: true
-}) : target, mod));
-
-//#endregion
-let node_crypto = require("node:crypto");
-node_crypto = __toESM(node_crypto);
 
 //#region src/cache.ts
+/**
+* In-memory token cache for the NetSuite token template function.
+*
+* The cache lives at module scope (the plugin instance is long-lived), keyed by
+* the non-secret identifying inputs. Tokens are never persisted to disk.
+*/
 /** Seconds of skew subtracted from the token lifetime so we re-mint early. */
 const EXPIRY_SKEW_SECONDS = 60;
 const store = /* @__PURE__ */ new Map();
@@ -40,19 +21,6 @@ function cacheKey(params) {
 		params.certId,
 		params.scope,
 		params.algorithm
-	].join("");
-}
-/**
-* Cache key for the exchange-only flow, where the input *is* the signed
-* assertion. The assertion is a bearer credential, so it is hashed (sha256)
-* rather than held verbatim as a map key. Different account or assertion →
-* different key.
-*/
-function exchangeCacheKey(accountId, assertion) {
-	return [
-		"exchange",
-		accountId,
-		(0, node_crypto.createHash)("sha256").update(assertion).digest("hex")
 	].join("");
 }
 /** Return the cached token if present and not yet expired (relative to `now`). */
@@ -1401,30 +1369,6 @@ const plugin = { templateFunctions: [{
 			algorithm: readAlgorithm(values)
 		};
 		return renderCachedToken(ctx, args.purpose, cacheKey(params), (now) => exchangeToken(params, fetchSender, now));
-	}
-}, {
-	name: "netsuite.exchangeToken",
-	description: "Exchange an already-signed NetSuite client-assertion JWT for an access token. Use when the JWT is built elsewhere; no private key required. Caches until just before expiry.",
-	args: [{
-		type: "text",
-		name: "accountId",
-		label: "Account ID",
-		placeholder: "1234567 or 1234567_SB1",
-		description: "NetSuite account id; used to build the token URL host."
-	}, {
-		type: "text",
-		name: "assertion",
-		label: "Client Assertion JWT",
-		password: true,
-		multiLine: true,
-		description: "The signed client-assertion JWT (its scope/iss/exp are already baked in). Reference a Yaak variable, e.g. ${[ netsuite.token(...) ]} is the access token — pass the *assertion* JWT here."
-	}],
-	async onRender(ctx, args) {
-		const values = args.values ?? {};
-		const accountId = readString(values, "accountId");
-		const assertion = readString(values, "assertion");
-		if (!accountId || !assertion) return null;
-		return renderCachedToken(ctx, args.purpose, exchangeCacheKey(accountId, assertion), () => exchangeAssertion(accountId, assertion, fetchSender));
 	}
 }] };
 

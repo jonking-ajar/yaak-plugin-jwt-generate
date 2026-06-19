@@ -1,7 +1,6 @@
 import type { Context, PluginDefinition } from "@yaakapp/api";
-import { cacheKey, exchangeCacheKey, getCached, setCached } from "./cache";
+import { cacheKey, getCached, setCached } from "./cache";
 import {
-  exchangeAssertion,
   exchangeToken,
   type MintedToken,
   type NetsuiteTokenParams,
@@ -169,45 +168,6 @@ export const plugin: PluginDefinition = {
 
         return renderCachedToken(ctx, args.purpose, cacheKey(params), (now) =>
           exchangeToken(params, fetchSender, now),
-        );
-      },
-    },
-    {
-      name: "netsuite.exchangeToken",
-      description:
-        "Exchange an already-signed NetSuite client-assertion JWT for an access token. Use when the JWT is built elsewhere; no private key required. Caches until just before expiry.",
-      args: [
-        {
-          type: "text",
-          name: "accountId",
-          label: "Account ID",
-          placeholder: "1234567 or 1234567_SB1",
-          description: "NetSuite account id; used to build the token URL host.",
-        },
-        {
-          type: "text",
-          name: "assertion",
-          label: "Client Assertion JWT",
-          password: true,
-          multiLine: true,
-          description:
-            "The signed client-assertion JWT (its scope/iss/exp are already baked in). Reference a Yaak variable, e.g. ${[ netsuite.token(...) ]} is the access token — pass the *assertion* JWT here.",
-        },
-      ],
-      async onRender(ctx: Context, args): Promise<string | null> {
-        const values = (args.values ?? {}) as Record<string, unknown>;
-
-        const accountId = readString(values, "accountId");
-        const assertion = readString(values, "assertion");
-        if (!accountId || !assertion) {
-          return null;
-        }
-
-        return renderCachedToken(
-          ctx,
-          args.purpose,
-          exchangeCacheKey(accountId, assertion),
-          () => exchangeAssertion(accountId, assertion, fetchSender),
         );
       },
     },
