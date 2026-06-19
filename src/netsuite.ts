@@ -112,26 +112,19 @@ function buildFormBody(assertion: string): string {
 }
 
 /**
- * Build the assertion, POST it via `send`, and parse the access token.
- * Throws `TokenExchangeError` (safe message) on non-2xx or a malformed body.
+ * Exchange an already-signed client-assertion JWT for an access token: POST it
+ * to the account's token endpoint via `send` and parse the response. Throws
+ * `TokenExchangeError` (safe message) on non-2xx or a malformed body.
+ *
+ * The assertion carries its own `scope`/`iss`/`exp`; only `accountId` is needed
+ * here to build the token URL host.
  */
-export async function exchangeToken(
-  params: NetsuiteTokenParams,
+export async function exchangeAssertion(
+  accountId: string,
+  assertion: string,
   send: TokenSender,
-  now: number,
 ): Promise<MintedToken> {
-  let assertion: string;
-  try {
-    assertion = await buildAssertion(params, now);
-  } catch {
-    // Most commonly: the private key cannot be imported, or its type does not
-    // match the selected algorithm. Keep the message generic — never echo key
-    // material.
-    throw new TokenExchangeError(
-      "Failed to sign the assertion — check the private key is valid PKCS#8 PEM and matches the selected algorithm",
-    );
-  }
-  const url = audUrl(params.accountId);
+  const url = audUrl(accountId);
 
   const result = await send({
     url,
@@ -167,6 +160,30 @@ export async function exchangeToken(
   }
 
   return { accessToken, expiresIn };
+}
+
+/**
+ * Build (sign) the assertion from `params`, then exchange it. Throws
+ * `TokenExchangeError` (safe message) on a signing failure, non-2xx, or a
+ * malformed body.
+ */
+export async function exchangeToken(
+  params: NetsuiteTokenParams,
+  send: TokenSender,
+  now: number,
+): Promise<MintedToken> {
+  let assertion: string;
+  try {
+    assertion = await buildAssertion(params, now);
+  } catch {
+    // Most commonly: the private key cannot be imported, or its type does not
+    // match the selected algorithm. Keep the message generic — never echo key
+    // material.
+    throw new TokenExchangeError(
+      "Failed to sign the assertion — check the private key is valid PKCS#8 PEM and matches the selected algorithm",
+    );
+  }
+  return exchangeAssertion(params.accountId, assertion, send);
 }
 
 /**

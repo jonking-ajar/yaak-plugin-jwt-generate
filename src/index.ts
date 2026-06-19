@@ -1,7 +1,9 @@
 import type { Context, PluginDefinition } from "@yaakapp/api";
-import { cacheKey, getCached, setCached } from "./cache";
+import { cacheKey, exchangeCacheKey, getCached, setCached } from "./cache";
 import {
+  exchangeAssertion,
   exchangeToken,
+  type MintedToken,
   type NetsuiteTokenParams,
   type NsAlgorithm,
   type TokenRequest,
@@ -14,7 +16,7 @@ const FETCH_TIMEOUT_MS = 30_000;
 /**
  * `fetch`-based transport. Lives here (not in `netsuite.ts`) so the core stays
  * environment-free. Enforces a timeout via `AbortController`; an abort rejects
- * and is caught by `onRender` → null + toast.
+ * and is caught by the render helper → null + toast.
  */
 async function fetchSender(req: TokenRequest): Promise<TokenSendResult> {
   const controller = new AbortController();
@@ -43,6 +45,50 @@ function readString(values: Record<string, unknown>, name: string): string | nul
 
 function readAlgorithm(values: Record<string, unknown>): NsAlgorithm {
   return values["algorithm"] === "ES256" ? "ES256" : "PS256";
+}
+
+/**
+ * Shared render logic for both token functions: serve a cached token, otherwise
+ * mint via `mint`, cache it, and return it.
+ *
+ * Both `send` and `preview` mint on a cache miss, so the editor's Rendered
+ * Preview (and its refresh button — Yaak renders both with purpose 'preview')
+ * shows a real token. The caller's required-arg guard plus the ~1h token cache
+ * bound this to at most one mint per credential set, so it does not re-sign or
+ * re-POST on every keystroke. Error toasts are surfaced only on a real send;
+ * during preview a failure returns null silently to avoid noise while args are
+ * being configured.
+ */
+async function renderCachedToken(
+  ctx: Context,
+  purpose: unknown,
+  key: string,
+  mint: (now: number) => Promise<MintedToken>,
+): Promise<string | null> {
+  const now = Date.now();
+  const cached = getCached(key, now);
+  if (cached != null) return cached;
+
+  try {
+    const { accessToken, expiresIn } = await mint(now);
+    setCached(key, accessToken, expiresIn, now);
+    return accessToken;
+  } catch (err) {
+    if (purpose === "send") {
+      // Key off `err.name` (a literal set in the constructor) rather than
+      // `instanceof TokenExchangeError`: the literal survives esbuild
+      // bundling/minification, whereas instanceof against the class identifier
+      // can be fragile across bundle boundaries. A TokenExchangeError carries a
+      // vetted, secret-free message; anything else (e.g. a fetch/network
+      // rejection) gets a generic message.
+      const message =
+        err instanceof Error && err.name === "TokenExchangeError"
+          ? err.message
+          : "NetSuite token request failed";
+      await ctx.toast.show({ color: "danger", message });
+    }
+    return null;
+  }
 }
 
 export const plugin: PluginDefinition = {
@@ -112,56 +158,57 @@ export const plugin: PluginDefinition = {
           return null;
         }
 
-        const scope = readString(values, "scope") ?? DEFAULT_SCOPE;
-        const algorithm = readAlgorithm(values);
-
         const params: NetsuiteTokenParams = {
           accountId,
           clientId,
           certId,
           privateKey,
-          scope,
-          algorithm,
+          scope: readString(values, "scope") ?? DEFAULT_SCOPE,
+          algorithm: readAlgorithm(values),
         };
 
-        const key = cacheKey(params);
-        const now = Date.now();
+        return renderCachedToken(ctx, args.purpose, cacheKey(params), (now) =>
+          exchangeToken(params, fetchSender, now),
+        );
+      },
+    },
+    {
+      name: "netsuite.exchangeToken",
+      description:
+        "Exchange an already-signed NetSuite client-assertion JWT for an access token. Use when the JWT is built elsewhere; no private key required. Caches until just before expiry.",
+      args: [
+        {
+          type: "text",
+          name: "accountId",
+          label: "Account ID",
+          placeholder: "1234567 or 1234567_SB1",
+          description: "NetSuite account id; used to build the token URL host.",
+        },
+        {
+          type: "text",
+          name: "assertion",
+          label: "Client Assertion JWT",
+          password: true,
+          multiLine: true,
+          description:
+            "The signed client-assertion JWT (its scope/iss/exp are already baked in). Reference a Yaak variable, e.g. ${[ netsuite.token(...) ]} is the access token — pass the *assertion* JWT here.",
+        },
+      ],
+      async onRender(ctx: Context, args): Promise<string | null> {
+        const values = (args.values ?? {}) as Record<string, unknown>;
 
-        const cached = getCached(key, now);
-        if (cached != null) return cached;
-
-        // Both send and preview mint on a cache miss, so the editor's Rendered
-        // Preview (and its refresh button — Yaak renders both with purpose
-        // 'preview') shows a real token. The required-arg guard above plus the
-        // ~1h token cache bound this to at most one mint per credential set, so
-        // it does not re-sign or re-POST on every keystroke.
-        try {
-          const { accessToken, expiresIn } = await exchangeToken(
-            params,
-            fetchSender,
-            now,
-          );
-          setCached(key, accessToken, expiresIn, now);
-          return accessToken;
-        } catch (err) {
-          // Suppress error toasts during preview: the editor preview/refresh
-          // fires with purpose 'preview' and partially-configured args would
-          // otherwise spam toasts. Surface failures only on a real send.
-          if (args.purpose === "send") {
-            // Key off `err.name` (a literal set in the constructor) rather than
-            // `instanceof TokenExchangeError`: the literal survives esbuild
-            // bundling/minification, whereas instanceof against the class
-            // identifier can be fragile across bundle boundaries. A
-            // TokenExchangeError carries a vetted, secret-free message; anything
-            // else (e.g. a fetch/network rejection) gets a generic message.
-            const message =
-              err instanceof Error && err.name === "TokenExchangeError"
-                ? err.message
-                : "NetSuite token request failed";
-            await ctx.toast.show({ color: "danger", message });
-          }
+        const accountId = readString(values, "accountId");
+        const assertion = readString(values, "assertion");
+        if (!accountId || !assertion) {
           return null;
         }
+
+        return renderCachedToken(
+          ctx,
+          args.purpose,
+          exchangeCacheKey(accountId, assertion),
+          () => exchangeAssertion(accountId, assertion, fetchSender),
+        );
       },
     },
   ],
