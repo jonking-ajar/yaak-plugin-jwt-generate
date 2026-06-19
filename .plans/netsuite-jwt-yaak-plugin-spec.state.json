@@ -1,15 +1,35 @@
 {
   "linear_issue": null,
   "plan_path": ".plans/netsuite-jwt-yaak-plugin-spec.md",
-  "branch_name": null,
+  "branch_name": "feat/netsuite-jwt-template-function",
   "pr_url": null,
   "pr_number": null,
-  "stage": "eng_revised",
+  "stage": "implementation_complete",
   "history": [
-    { "stage": "plan_drafted", "at": "2026-06-19T00:10:58Z" },
-    { "stage": "product_reviewed", "at": "2026-06-19T00:17:41Z" },
-    { "stage": "product_revised", "at": "2026-06-19T00:17:41Z" },
-    { "stage": "eng_reviewed", "at": "2026-06-19T00:24:47Z" },
-    { "stage": "eng_revised", "at": "2026-06-19T00:24:47Z" }
-  ]
+    {
+      "stage": "plan_drafted",
+      "at": "2026-06-19T00:10:58Z"
+    },
+    {
+      "stage": "product_reviewed",
+      "at": "2026-06-19T00:17:41Z"
+    },
+    {
+      "stage": "product_revised",
+      "at": "2026-06-19T00:17:41Z"
+    },
+    {
+      "stage": "eng_reviewed",
+      "at": "2026-06-19T00:24:47Z"
+    },
+    {
+      "stage": "eng_revised",
+      "at": "2026-06-19T00:24:47Z"
+    },
+    {
+      "stage": "implementation_complete",
+      "at": "2026-06-19T14:14:41Z"
+    }
+  ],
+  "base_branch": "main"
 }
