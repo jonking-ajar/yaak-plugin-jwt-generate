@@ -1,17 +1,23 @@
 {
-  "name": "yaak-plugin-jwt-generate",
-  "private": true,
+  "name": "@jonking-ajar/yaak-plugin-netsuite-jwt",
+  "displayName": "NetSuite JWT",
+  "description": "Yaak plugin for minting NetSuite OAuth 2.0 client-credentials (JWT-bearer) access tokens",
+  "repository": "https://github.com/jonking-ajar/yaak-plugin-netsuite-jwt",
+  "private": false,
   "version": "0.0.1",
   "scripts": {
     "build": "yaak plugin build",
-    "dev": "yaak plugin dev"
+    "dev": "yaak plugin dev",
+    "test": "vitest run",
+    "check-types": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/node": "^24.10.1",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.14"
+    "@types/node": "^26.0.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
   },
   "dependencies": {
-    "@yaakapp/api": "^0.7.0"
+    "@yaakapp/api": "^0.8.3",
+    "jose": "^6.2.3"
   }
 }

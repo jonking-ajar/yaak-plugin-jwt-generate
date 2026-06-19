@@ -1,2 +1,7 @@
 node_modules
-build/
+
+# Local live-test credentials — never commit
+test-fixtures/
+
+# Local planning artifacts
+.plans/
