@@ -4,7 +4,9 @@
   "version": "0.0.1",
   "scripts": {
     "build": "yaak plugin build",
-    "dev": "yaak plugin dev"
+    "dev": "yaak plugin dev",
+    "test": "vitest run",
+    "check-types": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
@@ -12,6 +14,7 @@
     "vitest": "^4.0.14"
   },
   "dependencies": {
-    "@yaakapp/api": "^0.7.0"
+    "@yaakapp/api": "^0.7.0",
+    "jose": "^5.10.0"
   }
 }
