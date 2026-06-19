@@ -176,6 +176,18 @@ describe("exchangeToken", () => {
     await expect(exchangeToken(params, send, NOW)).rejects.toThrow(/bad cert/);
   });
 
+  test("missing/non-numeric expires_in throws a typed error", async () => {
+    const { params } = await makeParams("PS256");
+    const send = async (): Promise<TokenSendResult> => ({
+      status: 200,
+      body: '{"access_token":"abc"}', // no expires_in
+    });
+    await expect(exchangeToken(params, send, NOW)).rejects.toBeInstanceOf(
+      TokenExchangeError,
+    );
+    await expect(exchangeToken(params, send, NOW)).rejects.toThrow(/expires_in/);
+  });
+
   test("malformed (non-JSON) success body throws a typed error", async () => {
     const { params } = await makeParams("PS256");
     const send = async (): Promise<TokenSendResult> => ({
