@@ -2,9 +2,9 @@
   "linear_issue": null,
   "plan_path": ".plans/netsuite-jwt-yaak-plugin-spec.md",
   "branch_name": "feat/netsuite-jwt-template-function",
-  "pr_url": null,
-  "pr_number": null,
-  "stage": "implementation_complete",
+  "pr_url": "https://github.com/jonking-ajar/yaak-plugin-jwt-generate/pull/1",
+  "pr_number": 1,
+  "stage": "pr_opened",
   "history": [
     {
       "stage": "plan_drafted",
@@ -29,6 +29,10 @@
     {
       "stage": "implementation_complete",
       "at": "2026-06-19T14:14:41Z"
+    },
+    {
+      "stage": "pr_opened",
+      "at": "2026-06-19T14:17:58Z"
     }
   ],
   "base_branch": "main"
